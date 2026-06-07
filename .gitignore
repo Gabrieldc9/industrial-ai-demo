@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.db
+node_modules/
+dist/
+frontend/dist/
+backend/static_dist/
+*.egg-info/
+.venv/
+venv/

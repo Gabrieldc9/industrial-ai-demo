@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: #0a0f1e;
+  color: #e2e8f0;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Scrollbar oscuro */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1e293b; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+/* Animación de pulso para estados críticos */
+@keyframes pulse-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+}
+.pulse-critical { animation: pulse-red 2s infinite; }
+
+@keyframes pulse-yellow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(234,179,8,0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(234,179,8,0); }
+}
+.pulse-warning { animation: pulse-yellow 3s infinite; }

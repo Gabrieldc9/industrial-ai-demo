@@ -1,0 +1,8 @@
+{
+  "name": "industrial-demo",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build && cp -r dist ../backend/frontend_dist",
+    "start": "python -c \"import sys; sys.path.insert(0,'backend'); import uvicorn; uvicorn.run('main:app', host='0.0.0.0', port=int(__import__('os').environ.get('PORT',8000)))\""
+  }
+}
