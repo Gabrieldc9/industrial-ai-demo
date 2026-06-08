@@ -34,7 +34,7 @@ AI_MODEL = "claude-haiku-4-5"   # Haiku: rápido y económico para diagnóstico 
 CLAUDE_DIAGNOSIS_COOLDOWN = 30   # segundos
 MAINTENANCE_TRIGGER_HEALTH = 25  # health < 25% → mantenimiento inmediato
 ALERT_COOLDOWN = 60              # segundos entre alertas del mismo equipo+sensor
-WO_LOG_COOLDOWN = 15             # segundos entre entradas de agente para mismo equipo
+WO_LOG_COOLDOWN = 60             # segundos entre entradas de agente para mismo equipo
 
 _last_claude_call: dict[str, float] = {}         # equipment_id → timestamp
 _last_alert: dict[str, float] = {}               # "equipment_id:sensor" → timestamp
