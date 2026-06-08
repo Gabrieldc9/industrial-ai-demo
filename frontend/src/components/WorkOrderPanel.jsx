@@ -26,6 +26,7 @@ export function WorkOrderPanel() {
   const [wos, setWos] = useState([])
   const [selected, setSelected] = useState(null)
   const [tab, setTab] = useState('open')
+  const [totals, setTotals] = useState({ open: 0, in_progress: 0, completed: 0 })
 
   useEffect(() => {
     fetchWos()
@@ -33,8 +34,21 @@ export function WorkOrderPanel() {
     return () => clearInterval(id)
   }, [tab])
 
+  useEffect(() => {
+    const fetchTotals = async () => {
+      const res = await fetch('/api/stats')
+      if (res.ok) {
+        const s = await res.json()
+        setTotals(s.wo_summary || totals)
+      }
+    }
+    fetchTotals()
+    const id = setInterval(fetchTotals, 8000)
+    return () => clearInterval(id)
+  }, [])
+
   async function fetchWos() {
-    const res = await fetch(`/api/work-orders?status=${tab}&limit=20`)
+    const res = await fetch(`/api/work-orders?status=${tab}&limit=50`)
     if (res.ok) setWos(await res.json())
   }
 
@@ -49,9 +63,9 @@ export function WorkOrderPanel() {
   }
 
   const tabs = [
-    { key: 'open', label: 'Abiertas' },
-    { key: 'in_progress', label: 'En curso' },
-    { key: 'completed', label: 'Completadas' },
+    { key: 'open',        label: `Abiertas${totals.open > 0 ? ` (${totals.open})` : ''}` },
+    { key: 'in_progress', label: `En curso${totals.in_progress > 0 ? ` (${totals.in_progress})` : ''}` },
+    { key: 'completed',   label: `Completadas (${totals.completed})` },
   ]
 
   return (
@@ -62,7 +76,7 @@ export function WorkOrderPanel() {
           <ClipboardList size={16} className="text-brand-500" />
           <h2 className="font-semibold text-white">Órdenes de Trabajo</h2>
           <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-500 font-bold">
-            {wos.length}
+            {totals[tab] ?? wos.length}
           </span>
         </div>
         <div className="flex gap-1">
