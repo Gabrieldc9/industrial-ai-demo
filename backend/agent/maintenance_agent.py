@@ -16,7 +16,7 @@ from typing import Optional
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-import anthropic
+from groq import Groq
 
 from cmms.work_orders import (
     create_wo, update_wo_status, update_wo_diagnosis,
@@ -27,8 +27,8 @@ from simulator.plant import Plant, SENSOR_THRESHOLDS
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-AI_MODEL = "claude-haiku-4-5"   # Haiku: rápido y económico para diagnóstico en loop
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+AI_MODEL = "llama-3.1-8b-instant"   # Llama 3.1 via Groq: gratuito y ultra-rápido
 
 # Cuántos ticks entre diagnósticos Claude (evitar spam de tokens)
 CLAUDE_DIAGNOSIS_COOLDOWN = 30   # segundos
@@ -47,7 +47,7 @@ class MaintenanceAgent:
 
     def __init__(self, plant: Plant):
         self.plant = plant
-        self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
+        self.client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
         self._pending_diagnoses: list[dict] = []   # WOs en cola para diagnóstico IA
         self._maintenance_queue: list[str] = []     # equipment_ids a mantener
 
@@ -231,13 +231,13 @@ Respondé en JSON con este formato exacto:
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
                 None,
-                lambda: self.client.messages.create(
+                lambda: self.client.chat.completions.create(
                     model=AI_MODEL,
                     max_tokens=600,
                     messages=[{"role": "user", "content": prompt}]
                 )
             )
-            raw = response.content[0].text.strip()
+            raw = response.choices[0].message.content.strip()
             # Extraer JSON si viene envuelto en markdown
             if "```" in raw:
                 raw = raw.split("```")[1]
