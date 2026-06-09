@@ -1,17 +1,8 @@
-[phases.setup]
-nixPkgs = ["nodejs_20", "python312"]
-
-[phases.install]
-cmds = [
-  "python3 -m pip install -r backend/requirements.txt",
-  "cd frontend && npm ci"
-]
-
 [phases.build]
 cmds = [
-  "cd frontend && npm run build",
+  "cd frontend && npm ci && npm run build",
   "cp -r frontend/dist backend/frontend_dist"
 ]
 
 [start]
-cmd = "cd backend && python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
+cmd = "cd backend && python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
