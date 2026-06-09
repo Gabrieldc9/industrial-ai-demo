@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Bell, BellOff, CheckCheck } from 'lucide-react'
+import { usePinGuard } from '../context/PinGuard'
 
 function timeAgo(ts) {
   const s = Math.floor(Date.now() / 1000 - ts)
@@ -9,6 +10,7 @@ function timeAgo(ts) {
 }
 
 export function AlertsPanel() {
+  const { protectedFetch } = usePinGuard()
   const [alerts, setAlerts] = useState([])
   const [showAll, setShowAll] = useState(false)
 
@@ -25,12 +27,18 @@ export function AlertsPanel() {
   }
 
   async function ackAlert(id) {
-    await fetch(`/api/alerts/${id}/acknowledge`, { method: 'POST' })
-    fetchAlerts()
+    const res = await protectedFetch(`/api/alerts/${id}/acknowledge`, { method: 'POST' })
+    if (res?.ok) fetchAlerts()
   }
 
   async function ackAll() {
-    await Promise.all(alerts.filter(a => !a.acknowledged).map(a => ackAlert(a.id)))
+    // Ack all en secuencia para reusar el PIN cacheado sin N modales
+    const unacked = alerts.filter(a => !a.acknowledged)
+    for (const a of unacked) {
+      const res = await protectedFetch(`/api/alerts/${a.id}/acknowledge`, { method: 'POST' })
+      if (!res) break  // usuario canceló
+    }
+    fetchAlerts()
   }
 
   const unackedCount = alerts.filter(a => !a.acknowledged).length

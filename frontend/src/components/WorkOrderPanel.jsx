@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ClipboardList, CheckCircle, AlertTriangle, Clock } from 'lucide-react'
+import { usePinGuard } from '../context/PinGuard'
 
 const PRIORITY_CFG = {
   critical: 'text-red-400 bg-red-900/20 border-red-700/30',
@@ -23,6 +24,7 @@ function timeAgo(ts) {
 }
 
 export function WorkOrderPanel() {
+  const { protectedFetch } = usePinGuard()
   const [wos, setWos] = useState([])
   const [selected, setSelected] = useState(null)
   const [tab, setTab] = useState('open')
@@ -53,13 +55,15 @@ export function WorkOrderPanel() {
   }
 
   async function updateStatus(woId, status) {
-    await fetch(`/api/work-orders/${woId}/status`, {
+    const res = await protectedFetch(`/api/work-orders/${woId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     })
-    fetchWos()
-    if (selected?.id === woId) setSelected(null)
+    if (res?.ok) {
+      fetchWos()
+      if (selected?.id === woId) setSelected(null)
+    }
   }
 
   const tabs = [

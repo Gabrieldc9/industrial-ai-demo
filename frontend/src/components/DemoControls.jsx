@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Play, Pause, RotateCcw, Zap, AlertTriangle, Heart } from 'lucide-react'
+import { usePinGuard } from '../context/PinGuard'
 
 const SPEEDS = [
   { label: '0.5×', value: 0.5 },
@@ -10,55 +11,62 @@ const SPEEDS = [
 ]
 
 const SCENARIOS = [
-  { id: 'cascade', label: 'Falla en Cascada', icon: <Zap size={13} />, color: 'text-orange-400 bg-orange-900/20 border-orange-700/40 hover:bg-orange-900/40' },
-  { id: 'critical', label: 'Crisis Total',    icon: <AlertTriangle size={13} />, color: 'text-red-400 bg-red-900/20 border-red-700/40 hover:bg-red-900/40' },
-  { id: 'recovery', label: 'Recuperación',    icon: <Heart size={13} />, color: 'text-emerald-400 bg-emerald-900/20 border-emerald-700/40 hover:bg-emerald-900/40' },
+  { id: 'cascade',  label: 'Falla en Cascada', icon: <Zap size={13} />,           color: 'text-orange-400 bg-orange-900/20 border-orange-700/40 hover:bg-orange-900/40' },
+  { id: 'critical', label: 'Crisis Total',     icon: <AlertTriangle size={13} />, color: 'text-red-400 bg-red-900/20 border-red-700/40 hover:bg-red-900/40' },
+  { id: 'recovery', label: 'Recuperación',     icon: <Heart size={13} />,         color: 'text-emerald-400 bg-emerald-900/20 border-emerald-700/40 hover:bg-emerald-900/40' },
 ]
 
 export function DemoControls({ onToast }) {
+  const { protectedFetch } = usePinGuard()
   const [speed, setSpeed] = useState(1)
   const [paused, setPaused] = useState(false)
   const [loading, setLoading] = useState(null)
 
   async function setSimSpeed(v) {
     setLoading('speed')
-    await fetch('/api/plant/speed', {
+    const res = await protectedFetch('/api/plant/speed', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ multiplier: v }),
     })
-    setSpeed(v)
+    if (res?.ok) setSpeed(v)
     setLoading(null)
   }
 
   async function togglePause() {
     setLoading('pause')
-    const res = await fetch('/api/plant/pause', { method: 'POST' })
-    const data = await res.json()
-    setPaused(data.paused)
+    const res = await protectedFetch('/api/plant/pause', { method: 'POST' })
+    if (res?.ok) {
+      const data = await res.json()
+      setPaused(data.paused)
+    }
     setLoading(null)
   }
 
   async function resetPlant() {
     if (!confirm('¿Resetear toda la planta y limpiar la base de datos?')) return
     setLoading('reset')
-    await fetch('/api/plant/reset', { method: 'POST' })
-    setSpeed(1)
-    setPaused(false)
-    onToast?.('🔄 Planta reseteada al estado inicial')
+    const res = await protectedFetch('/api/plant/reset', { method: 'POST' })
+    if (res?.ok) {
+      setSpeed(1)
+      setPaused(false)
+      onToast?.('🔄 Planta reseteada al estado inicial')
+    }
     setLoading(null)
   }
 
   async function runScenario(id) {
     setLoading(id)
-    const res = await fetch(`/api/demo/scenario/${id}`, { method: 'POST' })
-    const data = await res.json()
-    const msg = id === 'cascade'
-      ? `⚡ Cascada activa en ${data.affected?.join(', ')}`
-      : id === 'critical'
-      ? '🔴 Crisis total activada en todos los equipos'
-      : `💚 Recovery: ${data.maintained?.length ?? 0} equipos mantenidos`
-    onToast?.(msg)
+    const res = await protectedFetch(`/api/demo/scenario/${id}`, { method: 'POST' })
+    if (res?.ok) {
+      const data = await res.json()
+      const msg = id === 'cascade'
+        ? `⚡ Cascada activa en ${data.affected?.join(', ')}`
+        : id === 'critical'
+        ? '🔴 Crisis total activada en todos los equipos'
+        : `💚 Recovery: ${data.maintained?.length ?? 0} equipos mantenidos`
+      onToast?.(msg)
+    }
     setLoading(null)
   }
 

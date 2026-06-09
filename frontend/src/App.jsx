@@ -8,6 +8,7 @@ import { AgentLog } from './components/AgentLog'
 import { DemoControls } from './components/DemoControls'
 import { AlertsPanel } from './components/AlertsPanel'
 import { MaintenanceHistory } from './components/MaintenanceHistory'
+import { PinGuardProvider, usePinGuard } from './context/PinGuard'
 
 const HISTORY_SIZE = 80
 
@@ -19,7 +20,9 @@ const TABS = [
   { id: 'agent', label: 'Agente IA', icon: <Bot size={14} /> },
 ]
 
-export default function App() {
+// AppInner accede al contexto PinGuard; App lo envuelve con el provider.
+function AppInner() {
+  const { protectedFetch } = usePinGuard()
   const { plantData, connected } = useWebSocket()
   const historyRef = useRef({})
   const [history, setHistory] = useState({})
@@ -69,12 +72,12 @@ export default function App() {
   }
 
   async function handleMaintenance(eqId) {
-    const res = await fetch('/api/plant/maintenance', {
+    const res = await protectedFetch('/api/plant/maintenance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ equipment_id: eqId }),
     })
-    if (res.ok) {
+    if (res?.ok) {
       const data = await res.json()
       showToast(`✅ Mantenimiento en ${eqId}: ${data.health_before.toFixed(0)}% → ${data.health_after.toFixed(0)}%`)
     }
@@ -83,12 +86,12 @@ export default function App() {
   async function handleInjectFault(eqId) {
     const faults = ['bearing_wear', 'seal_leak', 'overload', 'misalignment', 'cavitation']
     const fault = faults[Math.floor(Math.random() * faults.length)]
-    const res = await fetch('/api/plant/inject-fault', {
+    const res = await protectedFetch('/api/plant/inject-fault', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ equipment_id: eqId, fault_mode: fault }),
     })
-    if (res.ok) showToast(`⚡ Falla inyectada: ${fault} en ${eqId}`)
+    if (res?.ok) showToast(`⚡ Falla inyectada: ${fault} en ${eqId}`)
   }
 
   const equipment = plantData?.equipment ? Object.values(plantData.equipment) : []
@@ -261,5 +264,13 @@ export default function App() {
         Industrial AI Demo · Sistema de Mantenimiento Predictivo Autónomo · Powered by Claude AI
       </footer>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <PinGuardProvider>
+      <AppInner />
+    </PinGuardProvider>
   )
 }

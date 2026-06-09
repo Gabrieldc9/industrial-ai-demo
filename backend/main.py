@@ -23,12 +23,26 @@ import json
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
+
+# ─── PIN de operador ──────────────────────────────────────────────────────────
+# Setear DEMO_PIN como variable de entorno en Railway. Default para dev local.
+DEMO_PIN = os.getenv("DEMO_PIN", "demo2024")
+
+def verify_pin(x_demo_pin: str = Header(None)):
+    """Dependencia FastAPI: valida el PIN de operador en el header X-Demo-Pin."""
+    if not x_demo_pin or x_demo_pin != DEMO_PIN:
+        raise HTTPException(
+            status_code=401,
+            detail="PIN inválido. Esta acción requiere autorización de operador.",
+            headers={"X-Error": "invalid_pin"},
+        )
+    return x_demo_pin
 
 from cmms.database import init_db
 from cmms.work_orders import (
@@ -153,7 +167,7 @@ class MaintenanceRequest(BaseModel):
 
 
 @app.post("/api/plant/maintenance")
-def trigger_maintenance(req: MaintenanceRequest):
+def trigger_maintenance(req: MaintenanceRequest, _pin: str = Depends(verify_pin)):
     """Trigger manual de mantenimiento desde el panel."""
     eq = plant.equipment.get(req.equipment_id)
     if not eq:
@@ -176,7 +190,7 @@ class FaultRequest(BaseModel):
 
 
 @app.post("/api/plant/inject-fault")
-def inject_fault(req: FaultRequest):
+def inject_fault(req: FaultRequest, _pin: str = Depends(verify_pin)):
     """Inyectar falla manualmente para demo."""
     eq = plant.equipment.get(req.equipment_id)
     if not eq:
@@ -192,7 +206,7 @@ class SpeedRequest(BaseModel):
 
 
 @app.post("/api/plant/speed")
-def set_speed(req: SpeedRequest):
+def set_speed(req: SpeedRequest, _pin: str = Depends(verify_pin)):
     """Controlar velocidad de simulación para demo."""
     m = max(0.1, min(20.0, req.multiplier))
     sim_speed["multiplier"] = m
@@ -201,7 +215,7 @@ def set_speed(req: SpeedRequest):
 
 
 @app.post("/api/plant/pause")
-def toggle_pause():
+def toggle_pause(_pin: str = Depends(verify_pin)):
     """Pausar/reanudar simulación."""
     sim_paused["value"] = not sim_paused["value"]
     state = "pausada" if sim_paused["value"] else "reanudada"
@@ -210,7 +224,7 @@ def toggle_pause():
 
 
 @app.post("/api/plant/reset")
-def reset_plant():
+def reset_plant(_pin: str = Depends(verify_pin)):
     """Resetear toda la planta al estado inicial."""
     global plant, agent
     plant = Plant()
@@ -227,7 +241,7 @@ def reset_plant():
 
 
 @app.post("/api/demo/scenario/{name}")
-async def run_demo_scenario(name: str):
+async def run_demo_scenario(name: str, _pin: str = Depends(verify_pin)):
     """
     Escenarios predefinidos para demo en vivo.
     - cascade: falla en cascada (pump → motor → compressor)
@@ -301,7 +315,7 @@ class WOStatusUpdate(BaseModel):
 
 
 @app.patch("/api/work-orders/{wo_id}/status")
-def patch_wo_status(wo_id: int, body: WOStatusUpdate):
+def patch_wo_status(wo_id: int, body: WOStatusUpdate, _pin: str = Depends(verify_pin)):
     return update_wo_status(wo_id, body.status)
 
 
@@ -311,7 +325,7 @@ def get_alerts(unacknowledged_only: bool = False, limit: int = 50):
 
 
 @app.post("/api/alerts/{alert_id}/acknowledge")
-def ack_alert(alert_id: int):
+def ack_alert(alert_id: int, _pin: str = Depends(verify_pin)):
     acknowledge_alert(alert_id)
     return {"ok": True}
 
