@@ -53,6 +53,7 @@ from cmms.work_orders import (
 )
 from simulator.plant import Plant
 from agent.maintenance_agent import MaintenanceAgent
+from industries import INDUSTRIES, DEFAULT_INDUSTRY
 
 # ─── Estado global ────────────────────────────────────────────────────────────
 
@@ -191,14 +192,20 @@ class FaultRequest(BaseModel):
 
 @app.post("/api/plant/inject-fault")
 def inject_fault(req: FaultRequest, _pin: str = Depends(verify_pin)):
-    """Inyectar falla manualmente para demo."""
+    """Inyectar falla manualmente para demo. Usa modos de falla del equipo actual."""
     eq = plant.equipment.get(req.equipment_id)
     if not eq:
         raise HTTPException(404, "Equipment not found")
-    eq.fault_mode = req.fault_mode
-    eq.degradation_rate *= 5
-    log_agent_action("rule_fired", f"Falla inyectada manualmente en {eq.name}: {req.fault_mode}", equipment_id=req.equipment_id)
-    return {"ok": True}
+    # Intentar usar el fault_mode pedido; si no es válido, elegir uno aleatorio del equipo
+    if req.fault_mode and eq.inject_specific_fault(req.fault_mode):
+        fault_applied = req.fault_mode
+    else:
+        eq._inject_fault()
+        fault_applied = eq.fault_mode
+    log_agent_action("rule_fired",
+        f"Falla inyectada en {eq.name}: {eq._fault_display_name()} ({fault_applied})",
+        equipment_id=req.equipment_id)
+    return {"ok": True, "fault_mode": fault_applied, "fault_display": eq._fault_display_name()}
 
 
 class SpeedRequest(BaseModel):
@@ -225,9 +232,9 @@ def toggle_pause(_pin: str = Depends(verify_pin)):
 
 @app.post("/api/plant/reset")
 def reset_plant(_pin: str = Depends(verify_pin)):
-    """Resetear toda la planta al estado inicial."""
+    """Resetear la planta al estado inicial (conserva la industria activa)."""
     global plant, agent
-    plant = Plant()
+    plant = Plant(industry=plant.industry)
     agent = MaintenanceAgent(plant)
     # Limpiar DB
     from cmms.database import get_conn
@@ -240,6 +247,45 @@ def reset_plant(_pin: str = Depends(verify_pin)):
     return {"ok": True}
 
 
+@app.get("/api/industries")
+def get_industries():
+    """Lista de industrias disponibles."""
+    return [
+        {
+            "id":          ind.industry_id,
+            "name":        ind.display_name,
+            "icon":        ind.icon,
+            "description": ind.description,
+            "site_name":   ind.site_name,
+            "active":      ind.industry_id == plant.industry.industry_id,
+        }
+        for ind in INDUSTRIES.values()
+    ]
+
+
+class IndustryRequest(BaseModel):
+    industry_id: str
+
+
+@app.post("/api/plant/industry")
+def switch_industry(req: IndustryRequest, _pin: str = Depends(verify_pin)):
+    """Cambiar industria y resetear toda la planta + DB."""
+    global plant, agent
+    industry = INDUSTRIES.get(req.industry_id)
+    if not industry:
+        raise HTTPException(400, f"Industria desconocida: {req.industry_id}. Disponibles: {list(INDUSTRIES.keys())}")
+    plant = Plant(industry=industry)
+    agent = MaintenanceAgent(plant)
+    from cmms.database import get_conn
+    with get_conn() as conn:
+        conn.execute("DELETE FROM work_orders")
+        conn.execute("DELETE FROM alerts")
+        conn.execute("DELETE FROM maintenance_log")
+        conn.execute("DELETE FROM agent_log")
+    log_agent_action("rule_fired", f"Industria cambiada a: {industry.display_name} — {industry.site_name}")
+    return {"ok": True, "industry": industry.industry_id, "site": industry.site_name}
+
+
 @app.post("/api/demo/scenario/{name}")
 async def run_demo_scenario(name: str, _pin: str = Depends(verify_pin)):
     """
@@ -248,21 +294,25 @@ async def run_demo_scenario(name: str, _pin: str = Depends(verify_pin)):
     - critical: llevar todos los equipos a estado crítico rápido
     - recovery: ejecutar mantenimiento en todos y volver a verde
     """
+    industry_id = plant.industry.industry_id
+
     if name == "cascade":
-        import asyncio
-        sequence = [
-            ("PUMP-01",  "bearing_wear"),
-            ("MOTOR-01", "overload"),
-            ("COMP-01",  "valve_wear"),
-        ]
-        for eq_id, fault in sequence:
+        # Seleccionar 3 equipos críticos según la industria
+        if industry_id == "oil_gas_bateria":
+            sequence = [("WELL-02", "sand_influx"), ("SEP-01", "emulsion_stable"), ("COMP-01", "valve_failure")]
+        else:
+            sequence = [("PUMP-01", "bearing_wear"), ("MOTOR-01", "overload"), ("COMP-01", "valve_wear")]
+
+        affected = []
+        for eq_id, fault_id in sequence:
             eq = plant.equipment.get(eq_id)
             if eq:
-                eq.fault_mode = fault
+                eq.inject_specific_fault(fault_id) or eq._inject_fault()
                 eq.degradation_rate *= 8
                 eq.health = max(30, eq.health - 20)
-        log_agent_action("rule_fired", "Escenario CASCADA activado: falla progresiva en 3 equipos")
-        return {"ok": True, "scenario": "cascade", "affected": [e[0] for e in sequence]}
+                affected.append(eq_id)
+        log_agent_action("rule_fired", f"Escenario CASCADA activado en {', '.join(affected)}")
+        return {"ok": True, "scenario": "cascade", "affected": affected}
 
     elif name == "critical":
         for eq in plant.equipment.values():

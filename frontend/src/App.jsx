@@ -9,6 +9,7 @@ import { DemoControls } from './components/DemoControls'
 import { AlertsPanel } from './components/AlertsPanel'
 import { MaintenanceHistory } from './components/MaintenanceHistory'
 import { PinGuardProvider, usePinGuard } from './context/PinGuard'
+import { IndustrySelector } from './components/IndustrySelector'
 
 const HISTORY_SIZE = 80
 
@@ -29,6 +30,7 @@ function AppInner() {
   const [toastMsg, setToastMsg] = useState(null)
   const [activeTab, setActiveTab] = useState('overview')
   const [unackedAlerts, setUnackedAlerts] = useState(0)
+  const [showIndustrySelector, setShowIndustrySelector] = useState(false)
 
   // Acumular historial de sensores
   useEffect(() => {
@@ -140,10 +142,21 @@ function AppInner() {
             )}
           </div>
 
-          <div className="ml-auto flex items-center gap-4">
+          <div className="ml-auto flex items-center gap-3">
+            {/* Selector de industria */}
+            {plantData?.industry && (
+              <button
+                onClick={() => setShowIndustrySelector(true)}
+                className="hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border border-slate-700/50 bg-slate-800/60 text-slate-300 hover:border-slate-600 hover:text-white transition-colors"
+                title="Cambiar industria"
+              >
+                <span>{plantData.industry.icon}</span>
+                <span className="max-w-[120px] truncate">{plantData.industry.site_name}</span>
+              </button>
+            )}
             {plantData && (
               <span className="hidden md:block text-xs text-slate-600 font-mono">
-                tick #{plantData.tick} · {equipment.length} eq.
+                tick #{plantData.tick}
               </span>
             )}
             <div className={`flex items-center gap-1.5 text-xs font-medium ${connected ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -261,9 +274,21 @@ function AppInner() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/50 py-2 px-4 text-center text-[10px] text-slate-700 shrink-0">
-        Industrial AI Demo · Sistema de Mantenimiento Predictivo Autónomo · Powered by Claude AI
+        Industrial AI Demo · {plantData?.industry?.name ?? 'Sistema de Mantenimiento Predictivo'} · Powered by AI
       </footer>
     </div>
+
+    {/* Industry selector modal */}
+    {showIndustrySelector && (
+      <IndustrySelector
+        currentIndustryId={plantData?.industry?.id}
+        onSelect={data => {
+          showToast(`🏭 Cambiado a ${data.site}`)
+          setShowIndustrySelector(false)
+        }}
+        onClose={() => setShowIndustrySelector(false)}
+      />
+    )}
   )
 }
 

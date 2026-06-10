@@ -46,19 +46,26 @@ export function EquipmentCard({ eq, history, onMaintenance, onInjectFault }) {
         <HealthBar health={eq.health} />
       </div>
 
+      {/* Área */}
+      {eq.area && (
+        <div className="mb-2 text-[10px] text-slate-600 uppercase tracking-wide">{eq.area}</div>
+      )}
+
       {/* Fault badge */}
       {eq.fault_mode && (
         <div className="mb-3 px-2 py-1 bg-red-900/30 border border-red-500/30 rounded text-xs text-red-300">
-          ⚠ {FAULT_LABELS[eq.fault_mode] || eq.fault_mode}
+          ⚠ {eq.fault_mode_display || FAULT_LABELS[eq.fault_mode] || eq.fault_mode}
         </div>
       )}
 
       {/* Sensors compactos */}
       <div className="grid grid-cols-2 gap-1.5 mb-3">
         {Object.entries(eq.sensors).slice(0, 4).map(([sensor, val]) => {
-          const unit = eq.sensor_units?.[sensor] || ''
+          const unit   = eq.sensor_units?.[sensor] || ''
+          const label  = eq.sensor_names?.[sensor] || sensor
           const thresh = eq.thresholds?.[sensor]
-          const isLow = ['flow', 'efficiency'].includes(sensor)
+          // Dirección: warning > critical → bajo es malo
+          const isLow  = thresh && thresh.warning > thresh.critical
           const isCrit = thresh && (isLow ? val < thresh.critical : val > thresh.critical)
           const isWarn = !isCrit && thresh && (isLow ? val < thresh.warning : val > thresh.warning)
           return (
@@ -67,7 +74,7 @@ export function EquipmentCard({ eq, history, onMaintenance, onInjectFault }) {
               isWarn ? 'bg-yellow-900/30 text-yellow-300' :
               'bg-slate-700/40 text-slate-300'
             }`}>
-              <div className="capitalize text-[10px] opacity-60">{sensor}</div>
+              <div className="text-[10px] opacity-60 truncate">{label}</div>
               <div className="font-mono font-bold">{val.toFixed(1)} {unit}</div>
             </div>
           )
