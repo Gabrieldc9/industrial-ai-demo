@@ -23,7 +23,7 @@ from cmms.work_orders import (
     create_alert, log_maintenance, log_agent_action,
     wo_exists_for_equipment,
 )
-from simulator.plant import Plant, SENSOR_THRESHOLDS
+from simulator.plant import Plant
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -150,7 +150,10 @@ class MaintenanceAgent:
                     })
 
     def _check_thresholds(self, sensors: dict, thresholds: dict):
-        """Retorna (sensor, value, threshold) del sensor más crítico, o None."""
+        """
+        Retorna (sensor, value, threshold) del sensor más crítico, o None.
+        Dirección inferida de los umbrales: warning > critical → bajo es malo.
+        """
         worst = None
         worst_ratio = 0
 
@@ -160,27 +163,27 @@ class MaintenanceAgent:
                 continue
             crit = thresh["critical"]
             warn = thresh["warning"]
+            low_is_bad = warn > crit   # dirección data-driven, no hardcodeada
 
-            if sensor in ("flow", "efficiency"):
-                # Bajo es malo
+            if low_is_bad:
                 if value < crit:
-                    ratio = (crit - value) / crit + 1  # > 1 para crítico
+                    ratio = (crit - value) / max(crit, 0.001) + 1
                     if ratio > worst_ratio:
                         worst_ratio = ratio
                         worst = (sensor, value, crit)
                 elif value < warn:
-                    ratio = (warn - value) / warn
+                    ratio = (warn - value) / max(warn, 0.001)
                     if ratio > worst_ratio:
                         worst_ratio = ratio
                         worst = (sensor, value, warn)
             else:
                 if value > crit:
-                    ratio = value / crit
+                    ratio = value / max(crit, 0.001)
                     if ratio > worst_ratio:
                         worst_ratio = ratio
                         worst = (sensor, value, crit)
                 elif value > warn:
-                    ratio = value / warn
+                    ratio = value / max(warn, 0.001)
                     if ratio > worst_ratio:
                         worst_ratio = ratio
                         worst = (sensor, value, warn)
