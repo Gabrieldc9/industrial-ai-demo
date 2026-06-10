@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Play, Pause, RotateCcw, Zap, AlertTriangle, Heart } from 'lucide-react'
+import { Play, Pause, RotateCcw, Zap, AlertTriangle, Heart, BrainCircuit } from 'lucide-react'
 import { usePinGuard } from '../context/PinGuard'
 
 const SPEEDS = [
@@ -11,9 +11,10 @@ const SPEEDS = [
 ]
 
 const SCENARIOS = [
-  { id: 'cascade',  label: 'Falla en Cascada', icon: <Zap size={13} />,           color: 'text-orange-400 bg-orange-900/20 border-orange-700/40 hover:bg-orange-900/40' },
-  { id: 'critical', label: 'Crisis Total',     icon: <AlertTriangle size={13} />, color: 'text-red-400 bg-red-900/20 border-red-700/40 hover:bg-red-900/40' },
-  { id: 'recovery', label: 'Recuperación',     icon: <Heart size={13} />,         color: 'text-emerald-400 bg-emerald-900/20 border-emerald-700/40 hover:bg-emerald-900/40' },
+  { id: 'planta_futuro', label: 'Planta del Futuro', icon: <BrainCircuit size={13} />, color: 'text-brand-500 bg-brand-500/10 border-brand-500/30 hover:bg-brand-500/20' },
+  { id: 'cascade',       label: 'Falla Cascada',     icon: <Zap size={13} />,           color: 'text-orange-400 bg-orange-900/20 border-orange-700/40 hover:bg-orange-900/40' },
+  { id: 'critical',      label: 'Crisis Total',      icon: <AlertTriangle size={13} />, color: 'text-red-400 bg-red-900/20 border-red-700/40 hover:bg-red-900/40' },
+  { id: 'recovery',      label: 'Recuperación',      icon: <Heart size={13} />,         color: 'text-emerald-400 bg-emerald-900/20 border-emerald-700/40 hover:bg-emerald-900/40' },
 ]
 
 export function DemoControls({ onToast }) {
@@ -60,7 +61,9 @@ export function DemoControls({ onToast }) {
     const res = await protectedFetch(`/api/demo/scenario/${id}`, { method: 'POST' })
     if (res?.ok) {
       const data = await res.json()
-      const msg = id === 'cascade'
+      const msg = id === 'planta_futuro'
+        ? `🏭 Planta del Futuro: 3 agentes respondiendo en ${data.affected?.join(', ')} — mirá el tab Cerebro`
+        : id === 'cascade'
         ? `⚡ Cascada activa en ${data.affected?.join(', ')}`
         : id === 'critical'
         ? '🔴 Crisis total activada en todos los equipos'
@@ -120,7 +123,7 @@ export function DemoControls({ onToast }) {
 
       {/* Escenarios predefinidos */}
       <div className="text-[10px] uppercase text-slate-600 mb-2">Escenarios</div>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {SCENARIOS.map(sc => (
           <button
             key={sc.id}

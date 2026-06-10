@@ -50,6 +50,26 @@ class MaintenanceAgent:
         self.client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
         self._pending_diagnoses: list[dict] = []   # WOs en cola para diagnóstico IA
         self._maintenance_queue: list[str] = []     # equipment_ids a mantener
+        self._last_action    = "Monitoreando equipos..."
+        self._last_action_ts = time.time()
+        self._stats = {
+            "wos_created":         0,
+            "alerts_generated":    0,
+            "diagnoses_completed": 0,
+            "maintenances_done":   0,
+        }
+
+    def get_status(self) -> dict:
+        return {
+            "id":             "maintenance",
+            "name":           "Agente de Mantenimiento",
+            "icon":           "🔧",
+            "domain":         "Detección de fallas · Work Orders · diagnóstico IA",
+            "status":         "active",
+            "last_action":    self._last_action,
+            "last_action_ts": self._last_action_ts,
+            "stats":          dict(self._stats),
+        }
 
     async def run_tick(self):
         """Ejecutar un ciclo del agente. Llamado desde el loop principal."""
@@ -80,9 +100,12 @@ class MaintenanceAgent:
         if health < MAINTENANCE_TRIGGER_HEALTH and eq_id not in self._maintenance_queue:
             if status not in ("maintenance", "stopped"):
                 self._maintenance_queue.append(eq_id)
+                act = f"Health crítico en {eq_data['name']} ({health:.1f}%) → mantenimiento programado"
+                self._last_action    = f"🔧 {act}"
+                self._last_action_ts = time.time()
                 log_agent_action(
                     "maintenance_triggered",
-                    f"Health crítico en {eq_data['name']} ({health:.1f}%) → mantenimiento programado",
+                    act,
                     equipment_id=eq_id,
                 )
             return
@@ -133,9 +156,13 @@ class MaintenanceAgent:
                     fault_mode=fault_mode,
                     sensor_readings=sensors,
                 )
+                self._stats["wos_created"] += 1
+                wo_act = f"WO creada: {wo['wo_number']} para {eq_data['name']}"
+                self._last_action    = f"📋 {wo_act}"
+                self._last_action_ts = time.time()
                 log_agent_action(
                     "wo_created",
-                    f"WO creada: {wo['wo_number']} para {eq_data['name']}",
+                    wo_act,
                     equipment_id=eq_id,
                     wo_id=wo["id"],
                 )
@@ -258,9 +285,13 @@ Respondé en JSON con este formato exacto:
                 f"Repuestos: {', '.join(data.get('spare_parts', []))}"
             )
             update_wo_diagnosis(wo_id, diagnosis, recommendation)
+            self._stats["diagnoses_completed"] += 1
+            diag_act = f"Diagnóstico IA completado para WO#{wo_id}: {diagnosis[:80]}..."
+            self._last_action    = f"🤖 {diag_act}"
+            self._last_action_ts = time.time()
             log_agent_action(
                 "diagnosis",
-                f"Diagnóstico IA completado para WO#{wo_id}: {diagnosis[:80]}...",
+                diag_act,
                 equipment_id=eq_id,
                 wo_id=wo_id,
                 detail=json.dumps(data, ensure_ascii=False),
@@ -289,6 +320,10 @@ Respondé en JSON con este formato exacto:
             update_wo_status(wo["id"], "completed")
             wo_id = wo["id"]
 
+        self._stats["maintenances_done"] += 1
+        maint_act = f"Mantenimiento ejecutado en {eq.name}: health {health_before:.1f}% → {health_after:.1f}%"
+        self._last_action    = f"🔧 {maint_act}"
+        self._last_action_ts = time.time()
         log_maintenance(
             equipment_id=eq_id,
             wo_id=wo_id,
@@ -299,7 +334,7 @@ Respondé en JSON con este formato exacto:
         )
         log_agent_action(
             "maintenance_triggered",
-            f"Mantenimiento ejecutado en {eq.name}: health {health_before:.1f}% → {health_after:.1f}%",
+            maint_act,
             equipment_id=eq_id,
             wo_id=wo_id,
         )

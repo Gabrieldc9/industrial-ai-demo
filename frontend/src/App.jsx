@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Factory, Wifi, WifiOff, LayoutDashboard, ClipboardList, Bell, History, Bot } from 'lucide-react'
+import { Factory, Wifi, WifiOff, LayoutDashboard, ClipboardList, Bell, History, Bot, BrainCircuit } from 'lucide-react'
 import { useWebSocket } from './hooks/useWebSocket'
 import { KPIBar } from './components/KPIBar'
 import { EquipmentCard } from './components/EquipmentCard'
@@ -10,15 +10,17 @@ import { AlertsPanel } from './components/AlertsPanel'
 import { MaintenanceHistory } from './components/MaintenanceHistory'
 import { PinGuardProvider, usePinGuard } from './context/PinGuard'
 import { IndustrySelector } from './components/IndustrySelector'
+import { AgentOrchestra } from './components/AgentOrchestra'
 
 const HISTORY_SIZE = 80
 
 const TABS = [
-  { id: 'overview', label: 'Planta', icon: <LayoutDashboard size={14} /> },
-  { id: 'workorders', label: 'Órdenes', icon: <ClipboardList size={14} /> },
-  { id: 'alerts', label: 'Alertas', icon: <Bell size={14} /> },
-  { id: 'history', label: 'Historial', icon: <History size={14} /> },
-  { id: 'agent', label: 'Agente IA', icon: <Bot size={14} /> },
+  { id: 'overview',   label: 'Planta',   icon: <LayoutDashboard size={14} /> },
+  { id: 'cerebro',    label: 'Cerebro',  icon: <BrainCircuit size={14} /> },
+  { id: 'workorders', label: 'Órdenes',  icon: <ClipboardList size={14} /> },
+  { id: 'alerts',     label: 'Alertas',  icon: <Bell size={14} /> },
+  { id: 'history',    label: 'Historial',icon: <History size={14} /> },
+  { id: 'agent',      label: 'Agente IA',icon: <Bot size={14} /> },
 ]
 
 // AppInner accede al contexto PinGuard; App lo envuelve con el provider.
@@ -119,7 +121,7 @@ function AppInner() {
             </div>
             <div>
               <h1 className="font-bold text-white text-sm leading-none">Industrial AI Demo</h1>
-              <p className="text-[10px] text-slate-500">Mantenimiento Predictivo Autónomo</p>
+              <p className="text-[10px] text-slate-500">Planta del Futuro · Operada por Agentes</p>
             </div>
           </div>
 
@@ -239,6 +241,13 @@ function AppInner() {
                 <AlertsPanel />
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── TAB: CEREBRO ──────────────────────────────────────────────────────── */}
+        {activeTab === 'cerebro' && (
+          <div className="h-[calc(100vh-180px)]">
+            <AgentOrchestra />
           </div>
         )}
 

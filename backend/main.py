@@ -52,13 +52,13 @@ from cmms.work_orders import (
     log_agent_action,
 )
 from simulator.plant import Plant
-from agent.maintenance_agent import MaintenanceAgent
+from agent.orchestra import AgentOrchestra, AUTONOMY_MODES
 from industries import INDUSTRIES, DEFAULT_INDUSTRY
 
 # ─── Estado global ────────────────────────────────────────────────────────────
 
-plant = Plant()
-agent = MaintenanceAgent(plant)
+plant     = Plant()
+orchestra = AgentOrchestra(plant)
 connected_clients: list[WebSocket] = []
 
 TICK_INTERVAL = 2.0       # segundos entre ticks de simulación
@@ -82,13 +82,13 @@ async def simulation_loop():
 
 
 async def agent_loop():
-    """Ciclo del agente autónomo."""
+    """Ciclo de la orquesta de agentes."""
     await asyncio.sleep(5)  # dejar que la planta arranque
     while True:
         try:
-            await agent.run_tick()
+            await orchestra.run_tick()
         except Exception as e:
-            print(f"[AGENT ERROR] {e}")
+            print(f"[ORCHESTRA ERROR] {e}")
         await asyncio.sleep(AGENT_INTERVAL)
 
 
@@ -114,7 +114,7 @@ async def broadcast_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    log_agent_action("rule_fired", "Sistema iniciado. Planta virtual online.")
+    log_agent_action("rule_fired", "🏭 Planta del Futuro online — 3 agentes activos: Seguridad · Mantenimiento · Proceso")
     asyncio.create_task(simulation_loop())
     asyncio.create_task(agent_loop())
     asyncio.create_task(broadcast_loop())
@@ -233,10 +233,9 @@ def toggle_pause(_pin: str = Depends(verify_pin)):
 @app.post("/api/plant/reset")
 def reset_plant(_pin: str = Depends(verify_pin)):
     """Resetear la planta al estado inicial (conserva la industria activa)."""
-    global plant, agent
+    global plant
     plant = Plant(industry=plant.industry)
-    agent = MaintenanceAgent(plant)
-    # Limpiar DB
+    orchestra.set_plant(plant)
     from cmms.database import get_conn
     with get_conn() as conn:
         conn.execute("DELETE FROM work_orders")
@@ -270,12 +269,12 @@ class IndustryRequest(BaseModel):
 @app.post("/api/plant/industry")
 def switch_industry(req: IndustryRequest, _pin: str = Depends(verify_pin)):
     """Cambiar industria y resetear toda la planta + DB."""
-    global plant, agent
+    global plant
     industry = INDUSTRIES.get(req.industry_id)
     if not industry:
         raise HTTPException(400, f"Industria desconocida: {req.industry_id}. Disponibles: {list(INDUSTRIES.keys())}")
     plant = Plant(industry=industry)
-    agent = MaintenanceAgent(plant)
+    orchestra.set_plant(plant)
     from cmms.database import get_conn
     with get_conn() as conn:
         conn.execute("DELETE FROM work_orders")
@@ -284,6 +283,30 @@ def switch_industry(req: IndustryRequest, _pin: str = Depends(verify_pin)):
         conn.execute("DELETE FROM agent_log")
     log_agent_action("rule_fired", f"Industria cambiada a: {industry.display_name} — {industry.site_name}")
     return {"ok": True, "industry": industry.industry_id, "site": industry.site_name}
+
+
+@app.get("/api/agents/status")
+def get_agents_status():
+    """Estado de todos los agentes + modo de autonomía actual."""
+    return orchestra.get_status()
+
+
+class AutonomyRequest(BaseModel):
+    mode: str  # manual | assisted | autonomous
+
+
+@app.post("/api/agents/mode")
+def set_autonomy_mode(req: AutonomyRequest, _pin: str = Depends(verify_pin)):
+    """Cambiar el modo de autonomía de la orquesta de agentes."""
+    try:
+        orchestra.set_autonomy_mode(req.mode)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    log_agent_action(
+        "rule_fired",
+        f"🎛️ Modo de autonomía cambiado a: {req.mode.upper()} — {AUTONOMY_MODES[req.mode]}",
+    )
+    return {"ok": True, "mode": req.mode, "description": AUTONOMY_MODES[req.mode]}
 
 
 @app.post("/api/demo/scenario/{name}")
@@ -332,7 +355,45 @@ async def run_demo_scenario(name: str, _pin: str = Depends(verify_pin)):
         log_agent_action("rule_fired", f"Escenario RECOVERY: {len(results)} equipos mantenidos")
         return {"ok": True, "scenario": "recovery", "maintained": results}
 
-    raise HTTPException(400, f"Escenario desconocido: {name}. Usar: cascade | critical | recovery")
+    elif name == "planta_futuro":
+        # Escenario "Planta del Futuro" — H2S en TANK-01 + cascada O&G
+        # Diseñado para demostrar los 3 agentes respondiendo en paralelo
+        industry_id = plant.industry.industry_id
+        affected = []
+        if industry_id == "oil_gas_bateria":
+            # H2S en tanque → SafetyAgent actúa primero
+            tank = plant.equipment.get("TANK-01")
+            if tank:
+                tank.inject_specific_fault("h2s_accumulation")
+                tank.health = max(45, tank.health - 15)
+                affected.append("TANK-01")
+            # Compresor falla → MaintenanceAgent crea WO
+            comp = plant.equipment.get("COMP-01")
+            if comp:
+                comp.inject_specific_fault("valve_failure")
+                comp.health = max(35, comp.health - 20)
+                comp.degradation_rate *= 5
+                affected.append("COMP-01")
+            # Separador emulsión → ProcessAgent detecta BSW
+            sep = plant.equipment.get("SEP-01")
+            if sep:
+                sep.inject_specific_fault("emulsion_stable")
+                affected.append("SEP-01")
+        else:
+            # Fallback genérico
+            for eq in list(plant.equipment.values())[:3]:
+                eq._inject_fault()
+                eq.degradation_rate *= 6
+                eq.health = max(30, eq.health - 25)
+                affected.append(eq.id)
+
+        log_agent_action(
+            "rule_fired",
+            f"🏭 Escenario PLANTA DEL FUTURO activado — 3 agentes respondiendo en {', '.join(affected)}",
+        )
+        return {"ok": True, "scenario": "planta_futuro", "affected": affected}
+
+    raise HTTPException(400, f"Escenario desconocido: {name}. Usar: cascade | critical | recovery | planta_futuro")
 
 
 @app.get("/api/plant/status")
